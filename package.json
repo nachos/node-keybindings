@@ -1,0 +1,44 @@
+{
+  "name": "keybindings",
+  "version": "0.0.0",
+  "description": "Cross-platform OS Key Bindinds",
+  "main": "./lib/keybindings.js",
+  "scripts": {
+    "start": "node lib/keybindings.js",
+    "test": "gulp test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nachos/node-keybindings"
+  },
+  "keywords": [
+    "os",
+    "api",
+    "native"
+  ],
+  "author": "Nachos team",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/nachos/node-keybindings/issues"
+  },
+  "homepage": "https://github.com/nachos/node-keybindings",
+  "devDependencies": {
+    "async": "^0.9.0",
+    "chai": "^2.1.1",
+    "del": "^1.1.1",
+    "gulp": "^3.8.11",
+    "gulp-jshint": "^1.9.2",
+    "gulp-mocha": "^2.0.0",
+    "gulp-util": "^3.0.4",
+    "jshint-stylish": "^1.0.1",
+    "lazypipe": "^0.2.2",
+    "mkdirp": "^0.5.0"
+  },
+  "os": [
+    "win32"
+  ],
+  "dependencies": {
+    "bindings": "^1.2.1",
+    "nan": "^1.7.0"
+  }
+}
