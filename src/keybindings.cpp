@@ -1,4 +1,5 @@
 #include <nan.h>
+#include <v8.h>
 
 #include <windows.h>
 #include <tlhelp32.h>
@@ -20,22 +21,19 @@ using namespace std;
 using namespace v8;
 using namespace node;
 
-class Worker : public NanAsyncWorker
-{
+class CallbackWrapper: ObjectWrap {
   public:
-    Worker::Worker(NanCallback *callback);
-    Worker::~Worker();
-    void Execute();
-    void Notify ();
+    NAN_METHOD(Init);
+    void Call();
 };
 
 #pragma data_seg(".SHARED")
-HHOOK hHook = 0;
 bool alt = false;
 bool ctrl = false;
 bool shift = false;
 bool winkey = false;
-Worker *_worker = NULL;
+HHOOK _hHook = 0;
+CallbackWrapper* _wrapper = NULL;
 #pragma data_seg()
 #pragma comment(linker, "/SECTION:.SHARED,RWS")
 
@@ -77,74 +75,99 @@ LRESULT WINAPI MyProc(int nCode, WPARAM wParam, LPARAM lParam) {
             myfile << MapVirtualKey(code, MAPVK_VK_TO_CHAR) << "\n";
             myfile << "\n";
             myfile.close();
-            _worker->Notify();
+            _wrapper->Call();
         }
     }
 
   }
 
   // call the next hook in the hook chain. This is nessecary or your hook chain will break and the hook stops
-  return CallNextHookEx(hHook, nCode, wParam, lParam);
+  return CallNextHookEx(_hHook, nCode, wParam, lParam);
 }
 
-
-Worker::Worker(NanCallback *callback)
-  : NanAsyncWorker(callback)
+class Worker : public NanAsyncWorker
 {
+  public:
+    Worker::Worker(NanCallback *callback) : NanAsyncWorker(callback) {
+      hHook = 0;
+    }
+
+    Worker::~Worker() {}
+
+    void Execute() {
+      HINSTANCE hInstance = GetCurrentModule();
+
+      hHook = SetWindowsHookEx(WH_KEYBOARD_LL, &MyProc, hInstance, NULL);
+      _hHook = hHook;
+
+      MSG message;
+      while(GetMessage(&message, NULL, 0, 0) != 0) {
+        TranslateMessage( &message );
+        DispatchMessage( &message );
+      }
+    }
+
+    void HandleOKCallback () {
+      // Remove Hook
+    }
+
+  private:
+    HHOOK hHook;
+};
+
+NAN_METHOD(CallbackWrapper::Init) {
+  this->Wrap(args.This());
+
+  NanCallback* dummyCallback = new NanCallback();
+  NanAsyncWorker* workerThread = new Worker(dummyCallback);
+  NanAsyncQueueWorker(workerThread);
 }
-Worker::~Worker() {}
 
-void Worker::Execute() {
-  HINSTANCE hInstance = GetCurrentModule();
+void CallbackWrapper::Call() {
+  HandleScope scope;
 
-  hHook = SetWindowsHookEx(WH_KEYBOARD_LL, &MyProc, hInstance, NULL);
+  Local<Value> callback_v = this->persistent()->Get("onKeys");
+  if (!callback_v->IsFunction()) {
+    return;
+  }
 
-  MSG message;
-  while(GetMessage(&message, NULL, 0, 0) != 0) {
-    TranslateMessage( &message );
-    DispatchMessage( &message );
-   }
+  callback_v.As<Function>()->Call(this->persistent().As<Object>(), 0, NULL);
 }
 
-void Worker::Notify () {
+NAN_METHOD(NewEmitter) {
   NanScope();
-  callback->Call(0, NULL);
+
+  if (!_wrapper) {
+    assert(args.IsConstructCall());
+    CallbackWrapper* wrapper = new CallbackWrapper();
+    wrapper->Init(args);
+    _wrapper = wrapper;
+  }
+
+  NanReturnThis();
 }
 
-NAN_METHOD(Listen) {
+/*NAN_METHOD(Listen) {
   NanScope();
 
   //Local<Object> returnObj = NanNew<Object>();
 
   //HINSTANCE hInstance = GetModuleHandle(NULL);
 
-  NanCallback* dummyCallback = new NanCallback(args[0].As<Function>());
+  NanCallback* dummyCallback = new NanCallback();
   NanAsyncWorker* workerThread = new Worker(dummyCallback);
-  _worker = (Worker*)workerThread;
   NanAsyncQueueWorker(workerThread);
 
   NanReturnUndefined();
-
-  /*int lastError = GetLastError();
-//
-//  if (lastError != 0) {
-//    LPWSTR lpMsg = NULL;
-//    FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_ALLOCATE_BUFFER, NULL, lastError, 0, (LPWSTR)&lpMsg, 0, NULL);
-//    char msg[1024];
-//    wcstombs(msg, lpMsg, 1024);
-//
-//    returnObj->Set(NanNew<String>("error"), NanNew<String>(msg));
-//    returnObj->Set(NanNew<String>("errorCode"), NanNew<Number>(lastError));
-//  } else {
-//    returnObj->Set(NanNew<String>("result"), NanNew<Number>((unsigned int)(hHook)));
-//  }*/
-//
-//  NanReturnValue(returnObj);
-}
+}*/
 
 void init(Handle<Object> exports) {
-  exports->Set(NanNew<String>("listen"),
-    NanNew<FunctionTemplate>(Listen)->GetFunction());
+  Local<FunctionTemplate> t = NanNew<FunctionTemplate>(NewEmitter);
+  t->InstanceTemplate()->SetInternalFieldCount(1);
+  t->SetClassName(NanNew<String>("Emitter"));
+
+  exports->Set(NanNew<String>("keybindings"),
+      t->GetFunction());
 }
 
 NODE_MODULE(keybindings, init)
