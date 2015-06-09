@@ -35,7 +35,7 @@ bool alt = false;
 bool ctrl = false;
 bool shift = false;
 bool winkey = false;
-Worker *_worker = NULL;
+NanCallback *_callback;
 #pragma data_seg()
 #pragma comment(linker, "/SECTION:.SHARED,RWS")
 
@@ -67,7 +67,7 @@ LRESULT WINAPI MyProc(int nCode, WPARAM wParam, LPARAM lParam) {
         }else if (code == VK_LWIN || code == VK_RWIN) {
             winkey = (wParam == WM_SYSKEYDOWN || wParam == WM_KEYDOWN);
         } else {
-            fstream myfile;
+            /*fstream myfile;
             myfile.open ("E:\\example.txt", fstream::app|fstream::out);
             myfile << "Alt: " << alt << "\n";
             myfile << "Ctrl: " << ctrl << "\n";
@@ -76,8 +76,8 @@ LRESULT WINAPI MyProc(int nCode, WPARAM wParam, LPARAM lParam) {
             myfile << "Down: " << (wParam == WM_SYSKEYDOWN || wParam == WM_KEYDOWN) << "\n";
             myfile << MapVirtualKey(code, MAPVK_VK_TO_CHAR) << "\n";
             myfile << "\n";
-            myfile.close();
-            _worker->Notify();
+            myfile.close();*/
+            _callback->Call(0, NULL);
         }
     }
 
@@ -114,32 +114,14 @@ void Worker::Notify () {
 NAN_METHOD(Listen) {
   NanScope();
 
-  //Local<Object> returnObj = NanNew<Object>();
-
-  //HINSTANCE hInstance = GetModuleHandle(NULL);
+  Local<Function> callbackHandle = args[0].As<Function>();
+  _callback = new NanCallback(callbackHandle);
 
   NanCallback* dummyCallback = new NanCallback(args[0].As<Function>());
   NanAsyncWorker* workerThread = new Worker(dummyCallback);
-  _worker = (Worker*)workerThread;
   NanAsyncQueueWorker(workerThread);
 
   NanReturnUndefined();
-
-  /*int lastError = GetLastError();
-//
-//  if (lastError != 0) {
-//    LPWSTR lpMsg = NULL;
-//    FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_ALLOCATE_BUFFER, NULL, lastError, 0, (LPWSTR)&lpMsg, 0, NULL);
-//    char msg[1024];
-//    wcstombs(msg, lpMsg, 1024);
-//
-//    returnObj->Set(NanNew<String>("error"), NanNew<String>(msg));
-//    returnObj->Set(NanNew<String>("errorCode"), NanNew<Number>(lastError));
-//  } else {
-//    returnObj->Set(NanNew<String>("result"), NanNew<Number>((unsigned int)(hHook)));
-//  }*/
-//
-//  NanReturnValue(returnObj);
 }
 
 void init(Handle<Object> exports) {
